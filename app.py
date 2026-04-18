@@ -5,7 +5,7 @@ import os
 import plotly.express as px
 
 st.set_page_config(page_title="Finanzas Pro", page_icon="📈", layout="wide")
-st.title("🚀 Control de Capital - Franquicias")
+st.title("🚀 Control de Capital ")
 
 archivo_datos = "mis_gastos.csv"
 categorias = ["Comida", "Padel/Fútbol", "Cigarros", "Estudio/UBA", "Varios"]
