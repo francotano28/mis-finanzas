@@ -1,69 +1,69 @@
 import streamlit as st
 import pandas as pd
-import datetime
 import os
 import plotly.express as px
 
+# Configuración de la página
 st.set_page_config(page_title="Finanzas Pro", page_icon="📈", layout="wide")
-st.title("🚀 Control de Capital ")
 
-archivo_datos = "mis_gastos.csv"
-categorias = ["Comida", "Padel/Fútbol", "Cigarros", "Estudio/UBA", "Varios"]
+st.title("🚀 Control de Capital")
 
-# --- FORMULARIO ---
-with st.expander("➕ Cargar Nuevo Gasto", expanded=True):
-    with st.form("nuevo_gasto", clear_on_submit=True):
+# Función para cargar datos
+def cargar_datos():
+    if os.path.exists('mis_gastos.csv'):
+        return pd.read_csv('mis_gastos.csv')
+    else:
+        return pd.DataFrame(columns=['¿Qué compraste?', 'Categoría', 'Monto ($)', 'Fecha'])
+
+df = cargar_datos()
+
+# --- SECCIÓN: CARGAR GASTO ---
+with st.expander("➕ Cargar Nuevo Gasto"):
+    with st.form("formulario_gasto"):
         col1, col2 = st.columns(2)
         with col1:
-            concepto = st.text_input("¿Qué compraste?")
-            monto = st.number_input("Monto ($)", min_value=0.0, step=100.0)
+            item = st.text_input("¿Qué compraste?")
+            monto = st.number_input("Monto ($)", min_value=0.0, step=0.1)
         with col2:
-            categoria = st.selectbox("Categoría", categorias)
-            fecha = st.date_input("Fecha", datetime.date.today())
+            categoria = st.selectbox("Categoría", ["Comida", "Transporte", "Servicios", "Salidas", "Otros"])
+            fecha = st.date_input("Fecha")
         
-        if st.form_submit_button("Registrar Gasto 🚀"):
-            if concepto != "":
-                nuevo_gasto = pd.DataFrame([[fecha, concepto, monto, categoria]], 
-                                           columns=["Fecha", "Concepto", "Monto", "Categoría"])
-                if not os.path.isfile(archivo_datos):
-                    nuevo_gasto.to_csv(archivo_datos, index=False)
-                else:
-                    nuevo_gasto.to_csv(archivo_datos, mode='a', index=False, header=False)
-                st.success("¡Gasto guardado!")
-                st.rerun()
+        enviar = st.form_submit_button("Registrar Gasto 🚀")
+        
+        if enviar:
+            nuevo_gasto = pd.DataFrame([[item, categoria, monto, str(fecha)]], 
+                                     columns=['¿Qué compraste?', 'Categoría', 'Monto ($)', 'Fecha'])
+            df = pd.concat([df, nuevo_gasto], ignore_index=True)
+            df.to_csv('mis_gastos.csv', index=False)
+            st.success("¡Gasto registrado!")
+            st.rerun()
 
-# --- LÓGICA DE FILTRADO ---
-if os.path.isfile(archivo_datos):
-    df = pd.read_csv(archivo_datos)
-    df['Fecha'] = pd.to_datetime(df['Fecha']) # Convertimos a formato fecha real
-    
-    # Creamos una columna que diga "Mes Año" para filtrar
-    df['Mes_Año'] = df['Fecha'].dt.strftime('%B %Y')
-    
-    # Selector de mes en la barra lateral
-    meses_disponibles = df['Mes_Año'].unique()
-    mes_seleccionado = st.sidebar.selectbox("📅 Seleccioná el Mes", meses_disponibles, index=len(meses_disponibles)-1)
-    
-    # Filtramos los datos
-    df_filtrado = df[df['Mes_Año'] == mes_seleccionado]
+# --- SECCIÓN NUEVA: BORRAR GASTO ---
+with st.expander("🗑️ Borrar Gasto"):
+    if not df.empty:
+        # Creamos una lista de opciones con el índice y una descripción del gasto
+        opciones = df.index.tolist()
+        seleccion = st.selectbox(
+            "Seleccioná el gasto que querés eliminar:",
+            opciones,
+            format_func=lambda x: f"{df.iloc[x]['Fecha']} | {df.iloc[x]['¿Qué compraste?']} | ${df.iloc[x]['Monto ($)']}"
+        )
+        
+        if st.button("Eliminar Gasto Seleccionado ❌"):
+            df = df.drop(seleccion).reset_index(drop=True)
+            df.to_csv('mis_gastos.csv', index=False)
+            st.warning("Gasto eliminado.")
+            st.rerun()
+    else:
+        st.info("No hay gastos registrados para borrar.")
 
-    # --- VISUALIZACIÓN ---
-    st.header(f"Análisis de {mes_seleccionado}")
+# --- ANÁLISIS ---
+if not df.empty:
+    st.divider()
+    st.subheader("Análisis de Gastos")
+    st.write(f"**Total acumulado:** ${df['Monto ($)'].sum():,.2f}")
     
-    col_a, col_b = st.columns([1, 2])
+    fig = px.pie(df, values='Monto ($)', names='Categoría', title="Gastos por Categoría")
+    st.plotly_chart(fig, use_container_width=True)
     
-    with col_a:
-        total_mes = df_filtrado['Monto'].sum()
-        st.metric("Total del Mes", f"${total_mes:,.2f}")
-        st.write("---")
-        st.write("**Desglose:**")
-        st.dataframe(df_filtrado[["Fecha", "Concepto", "Monto", "Categoría"]], hide_index=True)
-
-    with col_b:
-        fig = px.pie(df_filtrado, values='Monto', names='Categoría', 
-                     title=f"Gastos por Categoría - {mes_seleccionado}",
-                     hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-        st.plotly_chart(fig, use_container_width=True)
-
-else:
-    st.info("Cargá tu primer gasto para empezar a trackear.")
+    st.dataframe(df, use_container_width=True)
